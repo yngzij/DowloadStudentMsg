@@ -5,7 +5,7 @@ import  redis
 import  re
 
 
-base_number=12015050801000
+base_number=12015050801063
 invalid=0
 user_name=''
 pass_word=123456
@@ -135,8 +135,11 @@ def start():
                 if isexist(res.text) is True:
                     parse_html(res.text)
                 else:
-                    print('not fond number',base_number)
+                    print('not find number',base_number)
                     continue
+            else:
+                print("not find :",base_number)
+                continue
         except TimeoutError as e:
             print(e)
 
